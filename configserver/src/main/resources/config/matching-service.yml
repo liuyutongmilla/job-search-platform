@@ -1,0 +1,13 @@
+matching:
+  # 一次匹配请求最多对多少个职位打分。直接决定 AI 调用成本，是最该放在
+  # 配置中心的参数之一 —— 成本失控时不需要发版就能收紧。
+  candidateLimit: 20
+  # 低于这个分数的匹配不返回给用户
+  minScore: 60
+  # 返回给用户的条数
+  topN: 5
+  cache:
+    ttlMinutes: 60
+  contactDetails:
+    name: "Matching Service Team"
+    email: "matching-team@jobsearch.example.com"

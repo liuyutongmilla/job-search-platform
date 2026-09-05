@@ -1,0 +1,11 @@
+# 只放【业务可调参数】。数据库地址、Kafka 地址这类基础设施配置留在服务本地的
+# application.yml 里 —— 否则配置中心挂了整个平台起不来，反而降低了可用性。
+
+job:
+  search:
+    # 单次检索最多返回多少条（保护数据库和下游 AI 打分的成本）
+    maxResults: 50
+    defaultPageSize: 20
+  contactDetails:
+    name: "Job Service Team"
+    email: "job-team@jobsearch.example.com"

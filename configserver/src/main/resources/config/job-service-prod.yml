@@ -1,0 +1,13 @@
+# 环境覆盖示例：SPRING_PROFILES_ACTIVE=prod 时，这个文件的值覆盖 job-service.yml。
+# 对照 banking 项目的 accounts.yml / accounts-qa.yml / accounts-prod.yml 三件套。
+
+job:
+  search:
+    maxResults: 200
+    defaultPageSize: 20
+  contactDetails:
+    name: "Job Service On-Call"
+    email: "job-oncall@jobsearch.example.com"
+
+platform:
+  environment: "prod"

@@ -1,0 +1,7 @@
+target/
+.verify-logs/
+data/
+.DS_Store
+*.iml
+.idea/
+.env

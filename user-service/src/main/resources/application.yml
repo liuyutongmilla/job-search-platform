@@ -1,0 +1,114 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: "user-service"
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:default}
+  config:
+    import: "optional:configserver:http://${CONFIG_HOST:localhost}:8071/"
+
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:5432/userdb
+    username: ${DB_USER:jobsearch}
+    password: ${DB_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 10
+      connection-timeout: 3000
+
+  jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    open-in-view: false
+
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    locations: classpath:db/migration
+
+  servlet:
+    multipart:
+      # 和 config server 里的 user.resume.maxFileSizeMb 保持一致。
+      # 这一层是 Spring 的硬限制，超了直接 413，不会进业务代码。
+      max-file-size: 10MB
+      max-request-size: 12MB
+
+  cloud:
+    function:
+      # 激活 ResumeFunctions 里的 resumeParsed Consumer Bean
+      definition: resumeParsed
+    stream:
+      bindings:
+        # 生产：简历已上传 → ai-service
+        resumeUploaded-out-0:
+          destination: resume-uploaded
+        # 消费：ai-service 解析完 → 回写
+        resumeParsed-in-0:
+          destination: resume-parsed
+          # 消费者组。多副本时同一条消息只被消费一次 ——
+          # 漏了这个配置，3 个 pod 就会重复处理 3 次
+          group: ${spring.application.name}
+      kafka:
+        binder:
+          brokers:
+            - ${KAFKA_BROKERS:localhost:9092}
+        bindings:
+          resumeParsed-in-0:
+            consumer:
+              # 重试耗尽后进死信队列 resume-parsed.user-service.dlq，
+              # 而不是把消息丢掉。运维可以从 DLQ 里捞出来重放。
+              enableDlq: true
+              dlqName: resume-parsed.user-service.dlq
+              autoCommitOnError: false
+
+user:
+  resume:
+    storage-dir: ${RESUME_STORAGE_DIR:./data/resumes}
+
+eureka:
+  instance:
+    prefer-ip-address: true
+  client:
+    fetch-registry: true
+    register-with-eureka: true
+    service-url:
+      defaultZone: "http://${EUREKA_HOST:localhost}:8761/eureka/"
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "health,info,metrics,prometheus,refresh"
+  health:
+    readiness-state:
+      enabled: true
+    liveness-state:
+      enabled: true
+  endpoint:
+    health:
+      probes:
+        enabled: true
+    shutdown:
+      access: none
+  info:
+    env:
+      enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+
+info:
+  app:
+    name: "user-service"
+    description: "User profile and resume service"
+    version: "1.0.0"
+
+logging:
+  level:
+    com.jobsearch.userservice: DEBUG
+  pattern:
+    level: "%5p [${spring.application.name},%X{trace_id},%X{span_id}]"

@@ -1,0 +1,12 @@
+# 文件名 application.yml = 对【所有】客户端服务生效的共享配置。
+# 这是 config server 的一个惯例，banking 项目没用到，但很实用：
+# 放"所有服务都需要、且各环境可能不同"的东西。
+
+build:
+  version: "1.0.0-dev"
+
+platform:
+  name: "AI Job Search Platform"
+  environment: "default"
+  onCallSupport:
+    - "ops@jobsearch.example.com"
