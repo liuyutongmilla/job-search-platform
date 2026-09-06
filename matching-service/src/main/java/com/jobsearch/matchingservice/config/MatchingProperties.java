@@ -2,12 +2,7 @@ package com.jobsearch.matchingservice.config;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
-/**
- * 绑定 config server 里的 {@code matching.*}。
- *
- * <p>{@code candidateLimit} 直接决定 AI 调用成本（送去打分的职位数量），
- * 是最该放在配置中心的参数 —— 成本失控时不需要发版就能收紧。
- */
+
 @ConfigurationProperties(prefix = "matching")
 public record MatchingProperties(
         Integer candidateLimit,

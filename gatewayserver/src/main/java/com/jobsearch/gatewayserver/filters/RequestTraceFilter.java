@@ -12,11 +12,7 @@ import reactor.core.publisher.Mono;
 
 import java.util.UUID;
 
-/**
- * 入站流量染色：请求没带 correlation-id 就生成一个塞进请求头。
- *
- * <p>{@code @Order(1)} 保证它跑在其他过滤器之前 —— 后面所有环节都依赖这个 ID 存在。
- */
+
 @Order(1)
 @Component
 public class RequestTraceFilter implements GlobalFilter {

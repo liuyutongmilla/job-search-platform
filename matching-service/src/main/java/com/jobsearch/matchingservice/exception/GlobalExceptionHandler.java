@@ -20,7 +20,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(ResumeNotReadyException.class)
     public ResponseEntity<ErrorResponseDto> handleResumeNotReady(
             ResumeNotReadyException ex, WebRequest request) {
-        // 这不是错误，是正常的状态流转，用 info 级别，别污染 error 日志和告警
+        
         log.info("resume not ready: {}", ex.getMessage());
         return build(request, HttpStatus.CONFLICT, ex.getMessage());
     }
@@ -28,7 +28,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(UpstreamUnavailableException.class)
     public ResponseEntity<ErrorResponseDto> handleUpstreamUnavailable(
             UpstreamUnavailableException ex, WebRequest request) {
-        // 这个要 warn 级别 —— 它应该触发告警
+        
         log.warn("upstream unavailable: {}", ex.getMessage());
         return build(request, HttpStatus.SERVICE_UNAVAILABLE, ex.getMessage());
     }

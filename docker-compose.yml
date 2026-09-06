@@ -5,7 +5,7 @@ services:
     container_name: jobsearch-postgres
     environment:
       POSTGRES_USER: jobsearch
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env or your shell}
       POSTGRES_DB: postgres
     ports:
       - "5432:5432"
@@ -35,7 +35,6 @@ services:
     ports:
       - "9092:9092"
     environment:
-      # KRaft 单节点模式：同一个进程既是 broker 又是 controller，本地开发够用
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
@@ -68,7 +67,6 @@ services:
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
       DYNAMIC_CONFIG_ENABLED: "true"
 
-  # 接鉴权时再打开。gatewayserver 的 application.yml 里有对应的注释块。
   # keycloak:
   #   image: quay.io/keycloak/keycloak:26.0
   #   container_name: jobsearch-keycloak

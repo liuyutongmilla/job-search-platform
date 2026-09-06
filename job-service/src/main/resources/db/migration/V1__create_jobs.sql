@@ -1,12 +1,5 @@
--- Flyway 迁移脚本。命名规则：V<版本>__<描述>.sql
 --
--- 这是替换 banking 项目 `ddl-auto: update` 的关键一步：
---   ddl-auto: update  →  Hibernate 猜着改表，没有记录、不能回滚、生产上不敢用
---   Flyway            →  每次变更是一个带版本号的脚本，有 flyway_schema_history 表记录
---                        谁在什么时候执行了什么、校验和是多少
 --
--- 规矩：**已经执行过的脚本永远不要修改**。改了校验和就对不上，Flyway 会拒绝启动。
--- 要改结构就加 V2__xxx.sql。
 
 CREATE TABLE jobs (
     job_id          BIGSERIAL     PRIMARY KEY,
@@ -20,7 +13,6 @@ CREATE TABLE jobs (
     status          VARCHAR(20)   NOT NULL,
     posted_at       TIMESTAMP     NOT NULL,
 
-    -- 审计字段，由 BaseEntity + JPA Auditing 自动填充
     created_at      TIMESTAMP     NOT NULL,
     created_by      VARCHAR(64)   NOT NULL,
     updated_at      TIMESTAMP,
@@ -30,8 +22,6 @@ CREATE TABLE jobs (
     CONSTRAINT chk_jobs_salary  CHECK (min_salary IS NULL OR max_salary IS NULL OR min_salary <= max_salary)
 );
 
--- 同一家公司在同一城市不允许发布同名职位（对应 findByTitleAndCompanyAndCity 的去重逻辑）。
--- 唯一约束放在数据库层，而不是只靠应用层查一次 —— 并发下应用层的"先查再插"是有竞态的。
 CREATE UNIQUE INDEX uq_jobs_title_company_city ON jobs (title, company, city);
 
 CREATE TABLE job_skills (
@@ -40,14 +30,11 @@ CREATE TABLE job_skills (
     PRIMARY KEY (job_id, skill)
 );
 
--- 检索用索引，对应 JobRepository.search 的过滤条件
 CREATE INDEX idx_jobs_status_city   ON jobs (status, city);
 CREATE INDEX idx_jobs_posted_at     ON jobs (posted_at DESC);
 CREATE INDEX idx_jobs_status_years  ON jobs (status, required_years);
--- 技能是大小写不敏感匹配（查询里用了 LOWER(s)），所以索引也建在 LOWER 上
 CREATE INDEX idx_job_skills_lower   ON job_skills (LOWER(skill));
 
--- 示例数据，方便本地起来就能测。生产环境的 migration 不要塞业务数据。
 INSERT INTO jobs (title, company, city, min_salary, max_salary, required_years,
                   description, status, posted_at, created_at, created_by)
 VALUES

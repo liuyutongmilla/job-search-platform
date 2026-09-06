@@ -1,10 +1,7 @@
--- user 是 PostgreSQL 保留字，所以表名用 app_users
 CREATE TABLE app_users (
     user_id         BIGSERIAL     PRIMARY KEY,
     name            VARCHAR(100)  NOT NULL,
     email           VARCHAR(200)  NOT NULL,
-    -- ⚠️ 生产环境：phone 属于个人敏感信息，应当加密存储（pgcrypto 或应用层加密），
-    -- 并且列表查询接口不返回明文。这里为了教学保持明文，但这是必须偿还的技术债。
     phone           VARCHAR(30),
     city            VARCHAR(100),
     expected_salary INTEGER,
@@ -27,8 +24,6 @@ CREATE TABLE resumes (
     content_type      VARCHAR(100),
     size_bytes        BIGINT,
     parse_status      VARCHAR(20)   NOT NULL,
-    -- 结构化解析结果。JSONB 而非拆表：简历结构会随 prompt 迭代变化，
-    -- 早期保留灵活性；需要按字段查询时 JSONB 也能建 GIN 索引。
     parsed_json       JSONB,
     parse_error       VARCHAR(1000),
     version           INTEGER       NOT NULL,
@@ -44,7 +39,6 @@ CREATE TABLE resumes (
 );
 
 CREATE INDEX idx_resumes_user_version ON resumes (user_id, version DESC);
--- 运维用：快速找出卡在 PENDING/PROCESSING 太久的简历（解析链路是否堵了）
 CREATE INDEX idx_resumes_pending ON resumes (parse_status, uploaded_at)
     WHERE parse_status IN ('PENDING', 'PROCESSING');
 

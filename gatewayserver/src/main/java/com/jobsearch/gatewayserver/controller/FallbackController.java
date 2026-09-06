@@ -9,12 +9,7 @@ import reactor.core.publisher.Mono;
 import java.time.LocalDateTime;
 import java.util.Map;
 
-/**
- * 网关熔断兜底。路由上的 {@code setFallbackUri("forward:/contactSupport")} 指向这里。
- *
- * <p>返回 503 而不是 200 —— 状态码要如实反映"服务不可用"，
- * 否则前端和监控都会以为一切正常。这是 banking 项目那版（返回纯文本 200）该改的地方。
- */
+
 @RestController
 public class FallbackController {
 

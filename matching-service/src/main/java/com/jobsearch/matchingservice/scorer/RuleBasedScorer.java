@@ -15,17 +15,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
-/**
- * 规则打分器 —— AI 服务不可用时的降级实现。
- *
- * <p>算法很朴素，就三个维度：技能重合度（70 分）、城市匹配（15 分）、年限达标（15 分）。
- * 它不需要聪明，只需要<b>永远可用、永远便宜、结果可解释</b>。
- *
- * <p>它的另一个价值：作为 AI 打分的<b>基线</b>。阶段 3 接上 Claude 之后，
- * 你可以拿同一批数据跑两套打分做对比 —— 如果 AI 的结果并没有明显好于规则，
- * 那这个 AI 就不值得那个成本。这种"永远保留一个便宜基线"的习惯，
- * 是评估 LLM 是否真的带来价值的唯一靠谱办法。
- */
+
 @Component
 public class RuleBasedScorer {
 
@@ -58,14 +48,14 @@ public class RuleBasedScorer {
         List<String> strengths = new ArrayList<>();
         List<String> gaps = new ArrayList<>();
 
-        // --- 技能维度 ---
+        
         Set<String> required = lower(job.skills());
         Set<String> matched = new LinkedHashSet<>(required);
         matched.retainAll(facts.skills());
 
         int skillScore;
         if (required.isEmpty()) {
-            // 职位没写技能要求，这一维给中位分，不奖励也不惩罚
+            
             skillScore = SKILL_WEIGHT / 2;
         } else {
             skillScore = (int) Math.round((double) matched.size() / required.size() * SKILL_WEIGHT);
@@ -79,7 +69,7 @@ public class RuleBasedScorer {
             }
         }
 
-        // --- 城市维度 ---
+        
         int cityScore = 0;
         if (facts.city() == null || job.city() == null) {
             cityScore = CITY_WEIGHT / 2;
@@ -90,7 +80,7 @@ public class RuleBasedScorer {
             gaps.add("城市不符：职位在 " + job.city() + "，候选人在 " + facts.city());
         }
 
-        // --- 年限维度 ---
+        
         int yearsScore;
         Integer requiredYears = job.requiredYears();
         if (requiredYears == null || facts.years() == null) {
@@ -110,12 +100,7 @@ public class RuleBasedScorer {
         return new ScoreResult(job.jobId(), total, strengths, gaps, explanation);
     }
 
-    /**
-     * 从 ai-service 解析出的 JSON 里抽取打分需要的三个事实。
-     *
-     * <p>解析失败不抛异常 —— 这里本身就是降级路径，再挂一次就没有兜底了。
-     * 返回空事实，打分会全部落在"中位分"，结果不精确但不会报错。
-     */
+    
     private ResumeFacts extractFacts(String parsedResumeJson) {
         if (parsedResumeJson == null || parsedResumeJson.isBlank()) {
             return ResumeFacts.empty();

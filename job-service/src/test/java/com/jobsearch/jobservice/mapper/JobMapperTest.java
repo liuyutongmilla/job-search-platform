@@ -10,18 +10,12 @@ import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * banking 项目的测试只有一个空的 {@code contextLoads()} —— 那等于没有测试。
- * 这里从最容易测、最容易出错的地方开始：纯函数的 Mapper。
- *
- * <p>先写这种不需要 Spring 上下文的单元测试，跑得快（毫秒级），
- * 能在每次 commit 前无痛执行。集成测试（@SpringBootTest + Testcontainers）阶段 8 再补。
- */
+
 class JobMapperTest {
 
     @Test
     void newEntityIsAlwaysOpenAndIgnoresClientSuppliedStatus() {
-        // 客户端恶意传 CLOSED 和一个假的 jobId，都应该被忽略
+        
         JobDto dto = new JobDto(999L, "Java 后端", "Acme", "上海",
                 20000, 30000, 3, "描述", "CLOSED", Set.of("Java"), null);
 

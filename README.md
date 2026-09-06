@@ -1,342 +1,258 @@
-# AI Job Search Platform
+# Job Search Platform
 
-An AI-powered job search platform built with **Java 21, Spring Boot 4, Spring Cloud 2025.1.0, PostgreSQL, Redis, and Apache Kafka**.
+A Spring Boot microservices backend for job discovery, candidate profiles, resume processing, job matching, and notifications. The current architecture replaces Eureka-based service discovery with **Spring Cloud Kubernetes DiscoveryClient + DiscoveryServer**, while retaining Spring Cloud Gateway, OpenFeign, Config Server, PostgreSQL, Redis, Kafka, Resilience4j, Flyway, and Actuator.
 
-The project follows a microservices architecture that separates user management, job management, job matching, notifications, configuration, API routing, and service discovery into independent Spring Boot applications.
-Business services follow a database-per-service persistence model.
-
-> **Current architecture:** Service discovery is provided by Netflix Eureka with client-side load balancing through Spring Cloud LoadBalancer.
-
-The platform is designed as a modular backend system with independently deployable services, isolated data ownership, synchronous service communication, asynchronous event processing, and centralized infrastructure configuration.
-
----
+> **Current stage:** core Java services and Kubernetes deployment manifests are implemented. `ai-service` is a planned downstream service; when it is unavailable, `matching-service` can fall back to rule-based scoring.
 
 ## Architecture
 
 ```text
-                         Client
-                            |
-                            v
-                    +---------------+
-                    |  API Gateway  |
-                    |     :8072     |
-                    +-------+-------+
-                            |
-             +--------------+--------------+
-             |              |              |
-             v              v              v
-      +-------------+ +-------------+ +------------------+
-      | User Service| | Job Service | | Matching Service |
-      |    :8080    | |    :8090    | |      :9000       |
-      +-------------+ +-------------+ +--------+---------+
-             |              |                  |
-      userdb              jobdb            matchingdb
-    (PostgreSQL)        (PostgreSQL)       (PostgreSQL)
-                                                |
-                                                v
-                                               Redis
-                                           (matching cache)
+External Client
+      |
+      v
+Spring Cloud Gateway (8072)
+      |
+      |  lb://service-name
+      v
+Spring Cloud LoadBalancer
+      |
+      v
+Spring Cloud Kubernetes DiscoveryClient
+      |
+      v
+Kubernetes DiscoveryServer
+      |
+      v
+Kubernetes API
+      |
+      +--> Service / Endpoint --> Pod
 
-      API Gateway --------------------------------> Redis
-                                             (rate limiting)
-
-
-                  Matching Service
-                         |
-                         | match-computed event
-                         v
-                       Kafka
-                       :9092
-                         |
-                         v
-                +----------------------+
-                | Notification Service |
-                |        :9010         |
-                +----------------------+
-
-
-                +----------------------+       +----------------------+
-                |    Config Server     |       |    Eureka Server     |
-                |        :8071         |       |        :8761         |
-                +----------------------+       +----------------------+
-                            
+Business flow
+-------------
+Gateway
+  +--> user-service (8080) ------> PostgreSQL
+  |          |                    Kafka: resume-uploaded / resume-parsed
+  |          +------------------> resume storage
+  |
+  +--> job-service (8090) -------> PostgreSQL + Redis
+  |          +------------------> Kafka: job-posted
+  |
+  +--> matching-service (9000) --> user-service (Feign)
+             |                    job-service (Feign)
+             |                    ai-service (Feign, planned)
+             +------------------> PostgreSQL + Redis
+             +------------------> Kafka: match-computed
+                                      |
+                                      v
+                              notification-service (9010)
 ```
 
-Each business service owns an isolated PostgreSQL database (`userdb`, `jobdb`, `matchingdb`) — services never share tables directly and only interact through APIs (Feign) or events (Kafka). This preserves the ability to deploy, scale, or migrate each service independently.
+### Kubernetes service discovery
 
-- `user-service` → `userdb`
-- `job-service` → `jobdb`
-- `matching-service` → `matchingdb`
+`gatewayserver` and `matching-service` use the HTTP-based Spring Cloud Kubernetes `DiscoveryClient`. Instead of registering application instances with Eureka, Kubernetes owns service membership. The DiscoveryServer reads Kubernetes Service, Endpoint, and Pod metadata through the Kubernetes API and exposes that information to DiscoveryClient consumers.
 
-Services do not access another service's tables directly. Cross-service data is exchanged through REST APIs with OpenFeign or through Kafka events, preserving independent service boundaries.
-
----
-
-## Key Capabilities
-
-- User account and resume management
-- Job creation, retrieval, update, deletion, and search
-- Candidate-to-job matching workflow
-- Database-per-service persistence model
-- Unified external API routing through Spring Cloud Gateway
-- Dynamic service discovery through Netflix Eureka
-- Client-side load balancing with Spring Cloud LoadBalancer
-- Synchronous service-to-service communication with OpenFeign
-- Fault-tolerant remote communication with Resilience4j
-- Redis-backed API rate limiting and matching cache
-- Event-driven notification processing with Apache Kafka
-- Centralized configuration through Spring Cloud Config
-- Database schema management with Flyway
-- Containerized local infrastructure with Docker Compose
-
-
----
-
-## Microservices
-
-| Service                | Port | Responsibility                                               |
-| ---------------------- | ---: | ------------------------------------------------------------ |
-| `gatewayserver`        | 8072 | API routing, rate limiting, circuit breaking, request tracing |
-| `configserver`         | 8071 | Centralized configuration management (native profile, encryptable properties) |
-| `eurekaserver`         | 8761 | Service registration and discovery                           |
-| `user-service`         | 8080 | User accounts and resume upload/download                     |
-| `job-service`          | 8090 | Job postings, search, and lifecycle management               |
-| `matching-service`     | 9000 | Job matching workflow, orchestrates user/job/AI lookups, publishes match events |
-| `notification-service` | 9010 | Asynchronous email/SMS notifications consumed from Kafka     |
-
----
-
-
-## Tech Stack
-
-### Backend
-
-- Java 21
-- Spring Boot 4
-- Spring MVC / REST APIs
-- Spring Data JPA
-- OpenFeign
-- Springdoc OpenAPI (Swagger UI on `user-service`, `job-service`, `matching-service`)
-
-### Microservices
-
-- Spring Cloud Gateway (WebFlux)
-- Spring Cloud Config
-- Netflix Eureka
-- Spring Cloud LoadBalancer
-- Resilience4j (circuit breaker, rate limiter, retry)
-
-### Data & Messaging
-
-- PostgreSQL (one database per business service)
-- Redis (gateway rate limiting, matching cache)
-- Apache Kafka (KRaft mode, no ZooKeeper) + Kafka UI
-- Spring Cloud Stream (functional `Consumer<T>` bindings in `notification-service`)
-- Flyway
-
-### Infrastructure
-
-- Docker / Docker Compose
-- Maven
-
----
-
-## Service Discovery
-
-The current version uses **Netflix Eureka** for service registration and discovery.
-
-`matching-service` communicates with other services through Feign clients using logical service names:
-
-```java
-@FeignClient(name = "job-service")
-```
-
-The API Gateway follows the same pattern, using load-balanced routes such as:
+Example runtime path:
 
 ```text
-lb://JOB-SERVICE
+matching-service
+  -> @FeignClient(name = "job-service")
+  -> Spring Cloud LoadBalancer
+  -> Kubernetes DiscoveryClient
+  -> DiscoveryServer
+  -> Kubernetes API
+  -> job-service Service / Endpoint
+  -> job-service Pod
 ```
 
-Instead of hardcoding an instance address, Spring Cloud LoadBalancer resolves an available `job-service` instance through Eureka's service registry, so services address each other by logical name rather than fixed IPs/ports.
+The DiscoveryServer runs with a namespace-scoped ServiceAccount, Role, and RoleBinding defined in `k8s/01-discoveryserver.yaml`.
 
----
+## Services
 
-## API Gateway
+| Service | Port | Responsibility |
+|---|---:|---|
+| `configserver` | 8071 | Centralized configuration using the native backend for local development |
+| `gatewayserver` | 8072 | API routing, Redis rate limiting, circuit breaking, retry, and request correlation |
+| `user-service` | 8080 | User profiles, resume upload, resume state, and resume-processing events |
+| `job-service` | 8090 | Job CRUD/search, PostgreSQL persistence, Redis caching, and job events |
+| `matching-service` | 9000 | Feign aggregation, matching persistence/cache, AI integration boundary, and rule-based fallback |
+| `notification-service` | 9010 | Kafka consumer for match notifications with email/SMS channels and DLQ configuration |
+| `ai-service` | 9100 | Planned resume parsing and AI scoring service |
+| Kubernetes DiscoveryServer | 8761 container port | HTTP service-discovery bridge between Spring Cloud clients and the Kubernetes API |
 
-The gateway (`gatewayserver`) defines routes explicitly in code (`GatewayServerApplication`), rather than relying on Eureka's discovery locator — this avoids automatically exposing every registered service to the outside world.
+## Main API routes
 
-| Route prefix             | Target                  | Resilience strategy                                          |
-| ------------------------ | ----------------------- | ------------------------------------------------------------ |
-| `/jobsearch/users/**`    | `lb://USER-SERVICE`     | Circuit breaker → fallback (`/contactSupport`)               |
-| `/jobsearch/jobs/**`     | `lb://JOB-SERVICE`      | Retry (3x, GET only, exponential backoff) + Redis token-bucket rate limiter (20 req/s, burst 40, keyed by `X-User-Id` or client IP) |
-| `/jobsearch/matching/**` | `lb://MATCHING-SERVICE` | Circuit breaker → fallback (`/contactSupport`), wider timeout (30s) to accommodate the AI scoring call chain |
+Requests enter through `gatewayserver` and are rewritten before reaching each service.
 
-Each route strategy is chosen deliberately for the shape of its traffic: resume uploads are slow but non-idempotent (circuit breaker only), job search is read-heavy and idempotent (safe to retry, needs rate limiting to protect the DB), and matching has the longest call chain (user + job + AI), so it gets the most headroom before tripping.
+| Gateway route | Downstream operation |
+|---|---|
+| `POST /jobsearch/users/api/create` | Create a user |
+| `GET /jobsearch/users/api/{userId}` | Get a user profile |
+| `POST /jobsearch/users/api/{userId}/resume` | Upload a resume for asynchronous processing |
+| `GET /jobsearch/users/api/{userId}/resume` | Get the latest resume state |
+| `POST /jobsearch/jobs/api/create` | Create a job |
+| `GET /jobsearch/jobs/api/{jobId}` | Get a job |
+| `GET /jobsearch/jobs/api/search` | Search jobs using optional filters |
+| `PUT /jobsearch/jobs/api/{jobId}` | Update a job |
+| `DELETE /jobsearch/jobs/api/{jobId}` | Soft-close a job |
+| `POST /jobsearch/matching/api/compute?userId={id}` | Compute matches |
+| `GET /jobsearch/matching/api/matches?userId={id}` | Read stored matches |
 
----
-
-
-## Matching & AI Integration
-
-`matching-service` fans out over Feign to `user-service` and `job-service`, then scores candidates and persists the result:
+## Event flows
 
 ```text
-Matching Service
-       |
-       |-- Feign --> User Service   (candidate profile)
-       |-- Feign --> Job Service    (candidate jobs, /api/search)
-       |-- Feign --> AI Service     (scoring)
-       |
-       v
-   Persist match result (matchingdb)
-       |
-       v
-   Publish "match-computed" event to Kafka
+resume-uploaded : user-service      -> ai-service (planned)
+resume-parsed   : ai-service        -> user-service
+match-computed  : matching-service  -> notification-service
+job-posted      : job-service       -> future asynchronous consumers
 ```
 
-`ai-service` is not implemented yet, but its contract is already defined and wired in:
+`notification-service` configures separate email and SMS consumer groups for `match-computed`. Consumer failures can be routed to dedicated Kafka dead-letter topics. `user-service` also configures a DLQ for failed `resume-parsed` consumption.
 
-```java
-@FeignClient(name = "ai-service", fallback = AiFallback.class)
-public interface AiFeignClient {
-    @PostMapping("/api/ai/score")
-    ScoreResponse score(@RequestBody ScoreRequest request);
-}
-```
+## Resilience and data
 
-Until `ai-service` exists, calls fall through to a rule-based scorer, so the rest of the pipeline — orchestration, caching, persistence, event publishing — runs and is testable end-to-end without depending on the AI component. Matching parameters (`candidateLimit`, `minScore`, `topN`, cache TTL) are externalized in Config Server so they can be tuned without a redeploy.
+- **Gateway:** Redis-backed request rate limiting, retry for job GET traffic, and circuit-breaker fallbacks.
+- **Job service:** Resilience4j protection around search operations and Redis caching for read-heavy job data.
+- **Matching service:** OpenFeign clients for service-to-service calls, circuit-breaker support, Redis caching, and rule-based fallback when the planned AI service is unavailable.
+- **Persistence:** PostgreSQL databases for users, jobs, and matching results; Flyway manages schema migrations.
+- **Observability:** Spring Boot Actuator, Prometheus registry, correlation IDs at the gateway, and OpenTelemetry Java agent dependencies.
 
----
-
-## Event-Driven Notifications
-
-`matching-service` publishes `match-computed` to Kafka. `notification-service` binds two independent Spring Cloud Stream consumers to that topic, each under its own consumer group:
-
-```java
-@Bean
-public Consumer<MatchComputedEvent> emailNotification(NotificationSender sender) { ... }
-
-@Bean
-public Consumer<MatchComputedEvent> smsNotification(NotificationSender sender) { ... }
-```
-
-Email and SMS are separate consumers rather than a composed function chain, so a failure in one channel doesn't block the other — each retries, dead-letters, and scales independently.
-
----
-
-## Configuration
-
-`configserver` runs on the `native` profile, serving config from `classpath:/config` (one YAML per service). A `git` backend is present but commented out, ready to switch on when config needs to live outside the jar.
-
-Encrypted values (`{cipher}...`) are decrypted using a key read from `CONFIG_ENCRYPT_KEY`. There is no default — the server fails to start rather than falling back to a weak key.
-
----
-
-## Project Structure
+## Repository structure
 
 ```text
 job-search-platform/
-│
 ├── configserver/
-├── eurekaserver/
 ├── gatewayserver/
+├── user-service/
 ├── job-service/
 ├── matching-service/
 ├── notification-service/
-├── user-service/
-│
 ├── infra/
-│   └── postgres-init.sql      # creates userdb / jobdb / matchingdb
+│   └── postgres-init.sql
+├── k8s/
+│   ├── 00-namespace.yaml
+│   ├── 01-discoveryserver.yaml
+│   ├── 01-secret.example.yaml
+│   ├── 02-postgres.yaml
+│   ├── 03-redis.yaml
+│   ├── 04-kafka.yaml
+│   ├── 05-configserver.yaml
+│   ├── 06-user-service.yaml
+│   ├── 07-job-service.yaml
+│   ├── 08-matching-service.yaml
+│   ├── 09-notification-service.yaml
+│   ├── 10-gatewayserver.yaml
+│   ├── 11-gateway-nodeport.yaml
+│   └── kustomization.yaml
 ├── docker-compose.yml
-├── verify.sh                  # build + test all modules (or a single one)
-└── README.md
+└── verify.sh
 ```
 
-Each service is an independent Spring Boot application with its own Maven build.
+## Local development
 
----
+Docker Compose provides PostgreSQL, Redis, Kafka, and Kafka UI. The Spring Boot services can then run from the IDE or with their Maven wrappers.
 
-## Local Infrastructure
-
-```bash
-docker compose up -d      # start
-docker compose ps         # check status
-docker compose down       # stop
-```
-
-Provides:
-
-- **PostgreSQL 17** — `userdb`, `jobdb`, `matchingdb`, created via `infra/postgres-init.sql`
-- **Redis 7**
-- **Apache Kafka** (KRaft single-node — broker and controller in one process)
-- **Kafka UI** — `http://localhost:8081`
-- *(commented out)* **Keycloak** — scaffolded for OAuth2/JWT on the gateway, not yet wired in
-
----
-
-## Configuration & Secrets
-
-Create a `.env` file in the project root (excluded from Git):
+Create a local `.env` file (it is ignored by Git):
 
 ```env
-DB_PASSWORD=your_local_database_password
+DB_PASSWORD=your-local-password
 ```
 
-| Variable             | Used by               | Default                              |
-| -------------------- | --------------------- | ------------------------------------ |
-| `DB_PASSWORD`        | all business services | —                                    |
-| `REDIS_HOST`         | `gatewayserver`       | `localhost`                          |
-| `EUREKA_HOST`        | `gatewayserver`       | `localhost`                          |
-| `CONFIG_ENCRYPT_KEY` | `configserver`        | none — required, fails fast if unset |
-
-Do not commit real credentials, API keys, or tokens.
-
----
-
-## Running Locally
-
-```text
-1. docker compose up -d
-2. EurekaServerApplication
-3. ConfigServerApplication
-4. UserServiceApplication / JobServiceApplication / MatchingServiceApplication / NotificationServiceApplication
-5. GatewayServerApplication
-```
-
-Services register with Eureka on startup and resolve each other by logical name. Swagger UI is available on `user-service`, `job-service`, and `matching-service`.
-
-### Build & test
+Start infrastructure:
 
 ```bash
-./verify.sh              # compile + test all 7 modules
-./verify.sh compile      # compile only
-./verify.sh job-service  # single module
+docker compose up -d
 ```
 
----
+Then start `configserver` followed by the business services and `gatewayserver`.
 
-## Roadmap
+> The Kubernetes DiscoveryServer is designed for the Kubernetes deployment path. For full service-discovery behavior, deploy the stack to a Kubernetes cluster rather than treating DiscoveryServer as a replacement for Kubernetes itself.
 
-Current:
+Useful local endpoints:
 
 ```text
-Spring Boot Microservices → Spring Cloud Gateway → Eureka Discovery → Feign + LoadBalancer → PostgreSQL / Redis / Kafka
+Gateway:             http://localhost:8072
+Config Server:       http://localhost:8071
+User Service health: http://localhost:8080/actuator/health
+Job Swagger UI:      http://localhost:8090/swagger-ui.html
+Kafka UI:            http://localhost:8081
 ```
 
-Planned:
+## Kubernetes deployment
 
-```text
-Eureka Discovery → Kubernetes Deployment → Spring Cloud Kubernetes Discovery → Kubernetes-native Service Management
+The manifests use namespace `jobsearch`. Application images are referenced as `jobsearch/<service>:v1` and can be built with each module's Jib Maven plugin before deployment to a cluster that can access those images.
+
+### 1. Create the namespace and runtime Secret
+
+Do not commit real credentials. Create the Secret directly in the cluster:
+
+```bash
+kubectl apply -f k8s/00-namespace.yaml
+kubectl -n jobsearch create secret generic jobsearch-secrets \
+  --from-literal=DB_USER=jobsearch \
+  --from-literal=DB_PASSWORD='<your-db-password>' \
+  --from-literal=CONFIG_ENCRYPT_KEY='<your-config-encryption-key>'
 ```
 
-- Implement `ai-service` behind the existing `AiFeignClient` contract
-- OAuth2/JWT auth via Keycloak at the gateway
-- Kubernetes Deployments and Services, Kubernetes-based discovery
-- Health checks and self-healing
-- Centralized observability (metrics/tracing/logging aggregation)
+`k8s/01-secret.example.yaml` documents the expected keys only and is intentionally excluded from `kustomization.yaml`.
 
----
+### 2. Apply the platform
 
-## Status
+```bash
+kubectl apply -k k8s
+```
 
-🚧 Active development. Current state: Eureka-based discovery, explicit-routing gateway with per-route resilience policies, event-driven notifications, and a contract-first integration point for AI matching. Kubernetes migration is the next infrastructure milestone.
+### 3. Verify discovery
+
+```bash
+kubectl -n jobsearch get pods
+kubectl -n jobsearch get services
+kubectl -n jobsearch port-forward svc/spring-cloud-kubernetes-discoveryserver 8761:80
+```
+
+In another terminal:
+
+```bash
+curl http://localhost:8761/apps
+```
+
+The response should contain Kubernetes services visible to the DiscoveryServer in the `jobsearch` namespace.
+
+### 4. Access the gateway
+
+`k8s/11-gateway-nodeport.yaml` exposes the gateway for a local/demo cluster. The exact host address depends on the Kubernetes environment.
+
+## Example requests
+
+```bash
+curl -X POST http://localhost:8072/jobsearch/jobs/api/create \
+  -H 'Content-Type: application/json' \
+  -d '{"title":"Backend Software Engineer","company":"Acme","city":"Seattle","minSalary":120000,"maxSalary":160000,"requiredYears":2,"description":"Build backend services","skills":["Java","Spring Boot","Kafka"]}'
+
+curl 'http://localhost:8072/jobsearch/jobs/api/search?city=Seattle&skill=Kafka'
+
+curl -X POST http://localhost:8072/jobsearch/users/api/create \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"Demo User","email":"demo@example.com","phone":"2065550100","city":"Seattle"}'
+
+curl -X POST 'http://localhost:8072/jobsearch/matching/api/compute?userId=1'
+```
+
+## Security notes
+
+- Database passwords are supplied through environment variables or Kubernetes Secrets; no runtime password is committed in application configuration.
+- `SecurityConfig` currently permits requests as a development placeholder. OAuth2/Keycloak dependencies are present, but production authentication is not yet enabled.
+- The sample Kubernetes Secret contains placeholders only. Real secrets should be created outside Git.
+- The local Config Server uses the `native` backend. A production deployment should use an externalized and appropriately secured configuration source.
+
+## Current limitations / roadmap
+
+- Implement `ai-service` for resume parsing and model-based matching.
+- Enable OAuth2/JWT authentication and authorization.
+- Add broader unit, integration, and contract test coverage.
+- Add CI/CD and image publishing for Kubernetes environments.
+- Replace demo/local storage choices such as `emptyDir` resume/PostgreSQL volumes with production-grade persistent storage.
+- Extend observability dashboards, tracing export, and operational alerts.
+
+## Technology stack
+
+Java 21 · Spring Boot 4 · Spring Cloud 2025.1.x · Spring Cloud Gateway · Spring Cloud Kubernetes · OpenFeign · Resilience4j · PostgreSQL · Flyway · Redis · Apache Kafka · Spring Cloud Stream · Docker Compose · Kubernetes · Kustomize · Maven · Jib · Actuator · Prometheus · OpenTelemetry

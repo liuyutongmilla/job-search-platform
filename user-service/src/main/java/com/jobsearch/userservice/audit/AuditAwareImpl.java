@@ -12,7 +12,7 @@ public class AuditAwareImpl implements AuditorAware<String> {
 
     @Override
     public Optional<String> getCurrentAuditor() {
-        // TODO(接 Keycloak 后)：改为从 SecurityContextHolder 取真实操作员
+        
         return Optional.of(SERVICE_NAME);
     }
 }

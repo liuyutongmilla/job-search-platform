@@ -11,18 +11,11 @@ spring:
 
   cloud:
     function:
-      # 两个独立的 Consumer，用分号分隔。
-      # 注意不是 banking 项目那种 email|sms（竖线 = 函数组合，串成一条链）
       definition: emailNotification;smsNotification
     stream:
       bindings:
         emailNotification-in-0:
           destination: match-computed
-          # 关键：两个 Consumer 用【不同的消费者组】。
-          # 同一个 topic 的同一条消息会被每个组各消费一次 ——
-          # 这就是"邮件和短信都能收到同一个事件"的原理。
-          # 如果两个 Consumer 用同一个组，一条消息只会被其中一个拿到，
-          # 用户就会随机地只收到邮件或只收到短信。这个坑很隐蔽。
           group: ${spring.application.name}-email
         smsNotification-in-0:
           destination: match-computed
@@ -43,7 +36,6 @@ spring:
               dlqName: match-computed.sms.dlq
               autoCommitOnError: false
 
-# config server 连不上时的兜底
 notification:
   channels:
     email: true
@@ -52,43 +44,3 @@ notification:
     windowMinutes: 60
     maxPerWindow: 3
 
-eureka:
-  instance:
-    prefer-ip-address: true
-  client:
-    fetch-registry: true
-    register-with-eureka: true
-    service-url:
-      defaultZone: "http://${EUREKA_HOST:localhost}:8761/eureka/"
-
-management:
-  endpoints:
-    web:
-      exposure:
-        include: "health,info,metrics,prometheus,refresh"
-  health:
-    readiness-state:
-      enabled: true
-    liveness-state:
-      enabled: true
-  endpoint:
-    health:
-      probes:
-        enabled: true
-    shutdown:
-      access: none
-  metrics:
-    tags:
-      application: ${spring.application.name}
-
-info:
-  app:
-    name: "notification-service"
-    description: "Match notification consumer"
-    version: "1.0.0"
-
-logging:
-  level:
-    com.jobsearch.notificationservice: DEBUG
-  pattern:
-    level: "%5p [${spring.application.name},%X{trace_id},%X{span_id}]"

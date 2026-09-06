@@ -45,7 +45,7 @@ public class JobController {
     private final IJobService jobService;
     private final JobContactInfoDto jobConfig;
 
-    /** 来自 config server 的共享配置，用来验证配置中心是否真的生效了 */
+    
     @Value("${build.version:unknown}")
     private String buildVersion;
 
@@ -75,12 +75,7 @@ public class JobController {
         return ResponseEntity.ok(jobService.fetchJob(jobId));
     }
 
-    /**
-     * 多条件检索 —— matching-service 通过 Feign 调的就是这个接口。
-     *
-     * <p>{@code @RateLimiter} 是服务自身的限流，和网关的 Redis 限流是两道独立防线：
-     * 网关那道按用户限，这道按服务实例限，防止内部服务（比如批量重算）把数据库打满。
-     */
+    
     @Operation(summary = "多条件检索职位（所有条件可选）")
     @RateLimiter(name = "searchJobs", fallbackMethod = "searchFallback")
     @GetMapping("/search")
@@ -94,7 +89,7 @@ public class JobController {
         return ResponseEntity.ok(jobService.search(city, minSalary, maxYears, skill, limit));
     }
 
-    /** 限流触发时的降级：返回空列表 + 429，而不是抛异常。 */
+    
     public ResponseEntity<List<JobDto>> searchFallback(String correlationId, String city, Integer minSalary,
                                                        Integer maxYears, String skill, Integer limit,
                                                        Throwable throwable) {

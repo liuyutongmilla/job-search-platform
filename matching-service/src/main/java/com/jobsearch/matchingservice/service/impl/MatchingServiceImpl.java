@@ -37,20 +37,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * <b>Workflow 2：职位匹配（同步聚合 + 多级降级）</b>
- *
- * <pre>
- *   1. UserFeignClient  取简历   —— 拿不到就报错（简历是必要输入，不可降级）
- *   2. JobFeignClient   粗筛职位 —— 拿不到就返回空列表 + degraded 标记
- *   3. 查数据库缓存      —— 同一份简历版本 × 同一批职位，不重复花钱调 AI
- *   4. AiFeignClient    精排打分 —— 挂了就降级到规则打分
- *   5. 落库 + 发通知事件
- * </pre>
- *
- * <p>对照 banking 项目的 {@code CustomersServiceImpl.fetchCustomerDetails}
- * （聚合 cards + loans），结构一样，但这里多了两层：<b>成本缓存</b>和<b>降级引擎</b>。
- */
+
 @Service
 public class MatchingServiceImpl implements IMatchingService {
 
@@ -84,18 +71,14 @@ public class MatchingServiceImpl implements IMatchingService {
         this.props = props;
     }
 
-    /**
-     * {@code @Retry} 只重试<b>整个编排</b>的瞬时失败（比如数据库连接抖动）。
-     * 各个下游调用的重试由它们自己的 Feign + Resilience4j 配置负责 ——
-     * 重试要分层，不能在外层无脑重试整个链路，否则会把下游的一次抖动放大成 N 倍流量。
-     */
+    
     @Override
     @Retry(name = "computeMatches")
     @Transactional
     @CacheEvict(cacheNames = "matchResults", key = "#userId")
     public MatchResponseDto computeMatches(Long userId) {
 
-        // ---- 步骤 1：取简历（不可降级）----
+        
         ResumeView resume = userClient.fetchLatestResume(userId);
         if (resume == null) {
             throw new UpstreamUnavailableException("user-service 暂时不可用，无法获取简历");
@@ -107,7 +90,7 @@ public class MatchingServiceImpl implements IMatchingService {
 
         ResumeFacts facts = readFacts(resume.parsedJson());
 
-        // ---- 步骤 2：结构化粗筛（可降级为空列表）----
+        
         int candidateLimit = props.candidateLimitOr(DEFAULT_CANDIDATE_LIMIT);
         List<JobView> candidates = jobClient.search(
                 facts.city(), facts.expectedSalary(), facts.years(), null, candidateLimit);
@@ -118,7 +101,7 @@ public class MatchingServiceImpl implements IMatchingService {
                     true, "未取到候选职位：job-service 可能不可用，或确实没有符合硬条件的职位");
         }
 
-        // ---- 步骤 3：查已算过的（省钱的关键）----
+        
         Map<Long, JobMatch> cached = new HashMap<>();
         List<JobView> needScoring = new ArrayList<>();
         for (JobView job : candidates) {
@@ -131,7 +114,7 @@ public class MatchingServiceImpl implements IMatchingService {
         log.info("userId={} candidates={} cached={} toScore={}",
                 userId, candidates.size(), cached.size(), needScoring.size());
 
-        // ---- 步骤 4：精排打分（可降级为规则打分）----
+        
         MatchEngine engine = MatchEngine.AI;
         boolean degraded = false;
         String degradedReason = null;
@@ -149,14 +132,14 @@ public class MatchingServiceImpl implements IMatchingService {
                 degradedReason = "AI 分析服务暂时不可用，当前为快速匹配结果，解释质量较低";
             }
 
-            // ---- 步骤 5：落库 ----
+            
             Map<Long, JobView> jobById = new HashMap<>();
             needScoring.forEach(j -> jobById.put(j.jobId(), j));
 
             for (ScoreResult r : response.results()) {
                 if (r == null || r.jobId() == null || !jobById.containsKey(r.jobId())) {
-                    // 模型可能返回不存在的 jobId（幻觉）—— 必须校验后丢弃，
-                    // 不能直接落库。这是接 LLM 之后必加的一道防线。
+                    
+                    
                     log.warn("discarding score for unknown jobId={} userId={}",
                             r == null ? null : r.jobId(), userId);
                     continue;
@@ -165,7 +148,7 @@ public class MatchingServiceImpl implements IMatchingService {
             }
         }
 
-        // ---- 组装响应 ----
+        
         Map<Long, JobView> allJobs = new HashMap<>();
         candidates.forEach(j -> allJobs.put(j.jobId(), j));
 
@@ -183,18 +166,7 @@ public class MatchingServiceImpl implements IMatchingService {
                 matches, degraded, degradedReason);
     }
 
-    /**
-     * 读路径走 Redis 缓存。
-     *
-     * <p>两级缓存各管一件事，别搞混：
-     * <ul>
-     *   <li><b>数据库</b>（job_matches 表）缓存的是"分数"，为了<b>省 AI 的钱</b>，
-     *       生命周期跟着简历版本，长期有效</li>
-     *   <li><b>Redis</b> 缓存的是"这次查询的响应"，为了<b>省数据库和 Feign 的开销</b>，
-     *       TTL 只有几分钟</li>
-     * </ul>
-     * 只有前者是必须的；后者是在 QPS 上来之后才有意义的优化。
-     */
+    
     @Override
     @Cacheable(cacheNames = "matchResults", key = "#userId")
     public MatchResponseDto fetchMatches(Long userId) {
@@ -208,8 +180,8 @@ public class MatchingServiceImpl implements IMatchingService {
         boolean anyRuleBased = stored.stream().anyMatch(m -> m.getEngine() == MatchEngine.RULE_BASED);
         List<MatchDto> matches = stored.stream()
                 .limit(props.topNOr(DEFAULT_TOP_N))
-                // 这里没有 JobView，标题等字段留空：调用方要详情自己查 job-service。
-                // 也可以在这里再调一次 Feign 补全 —— 取舍是"一次请求多一跳" vs "响应字段不全"。
+                
+                
                 .map(m -> toDto(m, null))
                 .toList();
 
@@ -234,13 +206,7 @@ public class MatchingServiceImpl implements IMatchingService {
         return matchRepository.save(match);
     }
 
-    /**
-     * 分数必须夹紧到 0–100。
-     *
-     * <p>即使 prompt 里明确要求 0–100，模型偶尔也会给出 105 或 -3。
-     * 数据库有 CHECK 约束会拒绝，但那会变成一个 500 错误。
-     * <b>凡是来自 LLM 的数值，都要在入库前做范围校验</b> —— 这是接 AI 之后的必备习惯。
-     */
+    
     private static int clampScore(Integer score) {
         if (score == null) {
             return 0;
@@ -270,7 +236,7 @@ public class MatchingServiceImpl implements IMatchingService {
         log.info("published match-computed userId={} count={} success={}", userId, matches.size(), sent);
     }
 
-    // ---- JSON 工具 ----
+    
 
     private ResumeFacts readFacts(String parsedJson) {
         try {

@@ -72,16 +72,7 @@ public class UserController {
         return ResponseEntity.ok(new ResponseDto("200", "Request processed successfully"));
     }
 
-    /**
-     * 上传简历。
-     *
-     * <p><b>返回 202 Accepted，不是 200</b> —— 这个状态码的语义是
-     * "请求已接受，但处理还没完成"，精确表达了异步链路的实际情况。
-     * 客户端拿到 {@code parseStatus: "PENDING"}，之后轮询 {@code GET /api/{userId}/resume}
-     * 直到变成 DONE。
-     *
-     * <p>返回 200 会让前端以为解析已完成，是个常见的接口设计错误。
-     */
+    
     @Operation(summary = "上传简历（异步解析，立即返回 202）")
     @ApiResponses({
             @ApiResponse(responseCode = "202", description = "已接受，后台解析中"),

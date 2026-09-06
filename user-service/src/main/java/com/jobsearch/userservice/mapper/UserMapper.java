@@ -35,13 +35,7 @@ public final class UserMapper {
         user.setExpectedSalary(dto.expectedSalary());
     }
 
-    /**
-     * 简历 → DTO。
-     *
-     * <p>只有 {@code DONE} 状态才把 {@code parsedJson} 暴露出去 —— 中间状态的部分结果
-     * 不该被下游当成完整数据使用。这种"状态决定字段可见性"的逻辑放在 mapper 里，
-     * 比散落在各个调用方安全。
-     */
+    
     public static ResumeDto toDto(Resume resume) {
         boolean done = resume.getParseStatus() == ParseStatus.DONE;
         return new ResumeDto(
