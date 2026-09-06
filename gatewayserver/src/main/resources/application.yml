@@ -5,19 +5,22 @@ spring:
   application:
     name: "gatewayserver"
   config:
-    import: "optional:configserver:http://localhost:8071/"
+    import: "optional:configserver:http://${CONFIG_HOST:localhost}:8071/"
   cloud:
+    kubernetes:
+      discovery:
+        # Resolves service names through the in-cluster DiscoveryServer.
+        # Upstream: DiscoveryClient. Downstream: Kubernetes service metadata.
+        discovery-server-url: ${DISCOVERY_SERVER_URL:http://spring-cloud-kubernetes-discoveryserver}
+        enabled: true
     gateway:
       server:
         webflux:
           httpclient:
             connect-timeout: 2000
-            # 比熔断器的 30s 略小，让 HTTP 客户端先超时、熔断器统计到失败
             response-timeout: 25s
           discovery:
             locator:
-              # 关掉自动路由：路由表必须显式声明在代码里，否则任何注册上来的服务
-              # 都会被自动暴露到公网 —— 这是个安全隐患
               enabled: false
   data:
     redis:
@@ -25,53 +28,9 @@ spring:
       port: 6379
       connect-timeout: 2s
       timeout: 1s
-  # 接 Keycloak 后启用：
   # security:
   #   oauth2:
   #     resourceserver:
   #       jwt:
   #         jwk-set-uri: "http://localhost:7080/realms/master/protocol/openid-connect/certs"
 
-eureka:
-  instance:
-    prefer-ip-address: true
-  client:
-    fetch-registry: true
-    register-with-eureka: true
-    service-url:
-      defaultZone: "http://${EUREKA_HOST:localhost}:8761/eureka/"
-
-management:
-  endpoints:
-    web:
-      exposure:
-        include: "*"
-  endpoint:
-    gateway:
-      access: unrestricted
-  info:
-    env:
-      enabled: true
-  metrics:
-    tags:
-      application: ${spring.application.name}
-
-info:
-  app:
-    name: "gatewayserver"
-    description: "Job Search Platform API Gateway"
-    version: "1.0.0"
-
-logging:
-  level:
-    com.jobsearch.gatewayserver: DEBUG
-  pattern:
-    level: "%5p [${spring.application.name},%X{trace_id},%X{span_id}]"
-
-resilience4j.circuitbreaker:
-  configs:
-    default:
-      slidingWindowSize: 10
-      permittedNumberOfCallsInHalfOpenState: 2
-      failureRateThreshold: 50
-      waitDurationInOpenState: 10000

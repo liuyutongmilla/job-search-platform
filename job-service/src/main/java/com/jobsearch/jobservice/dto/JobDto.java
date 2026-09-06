@@ -9,15 +9,7 @@ import jakarta.validation.constraints.Size;
 import java.time.LocalDateTime;
 import java.util.Set;
 
-/**
- * 对外的职位契约。
- *
- * <p>用 record 而不是 Lombok class：DTO 本质是不可变的数据载体，
- * record 天然不可变、自带 equals/hashCode/toString，比 {@code @Data} 更适合。
- *
- * <p>校验注解写在这里、由 Controller 上的 {@code @Valid} 触发，
- * 失败会被 GlobalExceptionHandler 统一转成字段级错误 map —— 参数校验不进业务代码。
- */
+
 @Schema(name = "Job", description = "职位信息")
 public record JobDto(
 

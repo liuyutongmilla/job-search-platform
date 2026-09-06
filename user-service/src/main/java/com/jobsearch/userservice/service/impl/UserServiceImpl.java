@@ -66,20 +66,7 @@ public class UserServiceImpl implements IUserService {
         return true;
     }
 
-    /**
-     * <b>Workflow 1：简历上传（异步链路的起点）</b>
-     *
-     * <pre>
-     *   1. 存文件到对象存储
-     *   2. 写一条 parse_status = PENDING 的记录
-     *   3. 发 Kafka「resume-uploaded」
-     *   4. 立即返回  ← 用户在这里就拿到响应了，不等 LLM
-     * </pre>
-     *
-     * <p>为什么必须异步：Claude 解析一份 PDF 要几秒到几十秒。放在同步请求里的后果是
-     * HTTP 超时、连接池耗尽、用户界面转圈。这条链路和 banking 项目里
-     * 「开户 → 发短信 → 回写 communication_sw」是完全同构的。
-     */
+    
     @Override
     @Transactional
     public ResumeDto uploadResume(Long userId, MultipartFile file) {
@@ -100,12 +87,12 @@ public class UserServiceImpl implements IUserService {
 
         Resume saved = resumeRepository.save(resume);
 
-        // ⚠️ 这里有一个真实的一致性问题，值得记住：
-        // send 在事务提交【之前】执行。如果消息发出去了但事务回滚，
-        // ai-service 会收到一个数据库里不存在的 resumeId。
-        // 正确做法是 Transactional Outbox 模式（先写 outbox 表，事务提交后由定时任务投递），
-        // 或者用 @TransactionalEventListener(phase = AFTER_COMMIT)。
-        // 阶段 9 补 —— 先把链路跑通，但别忘了这里欠一笔债。
+        
+        
+        
+        
+        
+        
         ResumeUploadedEvent event = new ResumeUploadedEvent(
                 saved.getResumeId(), userId, fileKey, saved.getContentType(), nextVersion);
         boolean sent = streamBridge.send("resumeUploaded-out-0", event);
@@ -123,13 +110,7 @@ public class UserServiceImpl implements IUserService {
         return UserMapper.toDto(resume);
     }
 
-    /**
-     * <b>Workflow 1 的回程</b>：ai-service 解析完，通过 Kafka 回写。
-     *
-     * <p>必须是幂等的 —— Kafka 是 at-least-once 投递，同一条消息可能到两次。
-     * 这里的幂等性来自"重复写入相同结果不改变最终状态"：
-     * 第二次执行时 parse_status 已经是 DONE，再置一次 DONE 无害。
-     */
+    
     @Override
     @Transactional
     public void applyParseResult(Long resumeId, boolean success, String parsedJson, String errorMessage) {

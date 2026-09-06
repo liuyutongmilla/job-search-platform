@@ -7,12 +7,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import reactor.core.publisher.Mono;
 
-/**
- * 出站：把 correlation-id 写回响应头，方便前端 / 客户报障时直接把它贴给你。
- *
- * <p>注意这里用 {@code chain.filter(exchange).then(...)} —— 响应头必须在下游处理完
- * 之后才能加，所以要挂在 {@code then} 里，不能写在过滤器开头。
- */
+
 @Configuration
 public class ResponseTraceFilter {
 

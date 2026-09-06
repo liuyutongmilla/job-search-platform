@@ -1,6 +1,5 @@
 user:
   resume:
-    # 简历文件大小上限（MB）。Anthropic PDF 输入上限是 32MB / 600 页，留足余量。
     maxFileSizeMb: 10
     allowedContentTypes:
       - "application/pdf"

@@ -72,7 +72,7 @@ public class JobServiceImpl implements IJobService {
         Job job = requireJob(jobId);
         JobMapper.applyEditableFields(jobDto, job);
         jobRepository.save(job);
-        // 职位内容变了，已有的匹配分数就失效了 —— 通知下游重算
+        
         publishJobPosted(job);
         return true;
     }
@@ -121,13 +121,7 @@ public class JobServiceImpl implements IJobService {
         return (s == null || s.isBlank()) ? null : s;
     }
 
-    /**
-     * 发出"职位已发布/已变更"事件。
-     *
-     * <p>注意 {@code streamBridge.send} 返回 boolean 且<b>不抛异常</b>：Kafka 挂了
-     * 职位照样创建成功，只是下游不会立刻重算。这是有意的取舍 —— 主流程不该被通知链路拖死。
-     * 代价是需要补偿机制（定时扫 posted_at 晚于上次重算时间的职位），阶段 9 再做。
-     */
+    
     private void publishJobPosted(Job job) {
         JobPostedEvent event = new JobPostedEvent(
                 job.getJobId(), job.getTitle(), job.getCity(), job.getSkills(), job.getPostedAt());

@@ -55,7 +55,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return build(request, HttpStatus.BAD_REQUEST, ex.getMessage());
     }
 
-    /** 文件超过 spring.servlet.multipart.max-file-size 时 Spring 抛这个 */
+    
     @ExceptionHandler(MaxUploadSizeExceededException.class)
     public ResponseEntity<ErrorResponseDto> handleTooLarge(
             MaxUploadSizeExceededException ex, WebRequest request) {

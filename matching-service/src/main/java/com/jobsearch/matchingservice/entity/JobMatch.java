@@ -36,24 +36,18 @@ public class JobMatch extends BaseEntity {
     @Column(name = "job_id", nullable = false)
     private Long jobId;
 
-    /**
-     * 简历版本号。
-     *
-     * <p>唯一约束是 (user_id, job_id, resume_version) —— 简历改了就重算，
-     * 旧版本的分数保留但不再使用。这样"用户更新简历后分数没变"这个 bug
-     * 从数据模型层面就不可能发生。
-     */
+    
     @Column(name = "resume_version", nullable = false)
     private Integer resumeVersion;
 
     @Column(name = "score", nullable = false)
     private Integer score;
 
-    /** 优势项，JSONB 数组 */
+    
     @Column(name = "strengths", columnDefinition = "jsonb")
     private String strengths;
 
-    /** 差距项，JSONB 数组 */
+    
     @Column(name = "gaps", columnDefinition = "jsonb")
     private String gaps;
 

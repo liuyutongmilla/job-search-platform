@@ -12,7 +12,7 @@
 set -uo pipefail
 cd "$(dirname "$0")"
 
-MODULES=(eurekaserver configserver gatewayserver user-service job-service matching-service notification-service)
+MODULES=(configserver gatewayserver user-service job-service matching-service notification-service)
 MODE="${1:-all}"
 
 # 只验单个模块

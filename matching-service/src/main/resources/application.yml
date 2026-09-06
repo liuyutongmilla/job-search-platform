@@ -39,17 +39,17 @@ spring:
   cache:
     type: redis
     redis:
-      # 读路径缓存，TTL 短。分数本身的"缓存"在数据库里（job_matches 表），
-      # 那个才是省 AI 钱的关键，生命周期跟着简历版本走。
       time-to-live: 5m
       cache-null-values: false
 
   cloud:
+    kubernetes:
+      discovery:
+        # Resolves service names through the in-cluster DiscoveryServer.
+        # Upstream: DiscoveryClient. Downstream: Kubernetes service metadata.
+        discovery-server-url: ${DISCOVERY_SERVER_URL:http://spring-cloud-kubernetes-discoveryserver}
+        enabled: true
     openfeign:
-      # ⚠️ 这一行是 fallback 生效的前提。
-      # 只加 spring-cloud-starter-openfeign 而不开这个开关，
-      # @FeignClient(fallback = ...) 会被静默忽略 —— 不报错，就是不生效。
-      # 这是最容易踩的坑之一。
       circuitbreaker:
         enabled: true
       client:
@@ -57,8 +57,6 @@ spring:
           default:
             connectTimeout: 2000
             readTimeout: 5000
-          # AI 打分本来就慢，单独给它放宽超时。
-          # 这个值必须小于网关的 25s，否则网关先超时，这里的降级就没机会执行
           ai-service:
             connectTimeout: 3000
             readTimeout: 20000
@@ -71,97 +69,3 @@ spring:
           brokers:
             - ${KAFKA_BROKERS:localhost:9092}
 
-eureka:
-  instance:
-    prefer-ip-address: true
-  client:
-    fetch-registry: true
-    register-with-eureka: true
-    service-url:
-      defaultZone: "http://${EUREKA_HOST:localhost}:8761/eureka/"
-
-# config server 连不上时的兜底默认值（config server 里的同名配置会覆盖它）
-matching:
-  candidateLimit: 20
-  minScore: 60
-  topN: 5
-  cache:
-    ttlMinutes: 60
-
-management:
-  endpoints:
-    web:
-      exposure:
-        include: "health,info,metrics,prometheus,refresh,circuitbreakers"
-  health:
-    readiness-state:
-      enabled: true
-    liveness-state:
-      enabled: true
-    circuitbreakers:
-      enabled: true
-  endpoint:
-    health:
-      probes:
-        enabled: true
-      show-details: always
-    shutdown:
-      access: none
-  info:
-    env:
-      enabled: true
-  metrics:
-    tags:
-      application: ${spring.application.name}
-
-info:
-  app:
-    name: "matching-service"
-    description: "Resume-to-job matching orchestration"
-    version: "1.0.0"
-
-logging:
-  level:
-    com.jobsearch.matchingservice: DEBUG
-  pattern:
-    # %X{jobsearch-correlation-id} 取自 MDC，由 CorrelationIdFilter 放进去。
-    # 有了它，一次用户请求在 4 个服务里的日志才能串起来。
-    level: "%5p [${spring.application.name},%X{trace_id},%X{span_id},%X{jobsearch-correlation-id}]"
-
-resilience4j.circuitbreaker:
-  configs:
-    default:
-      slidingWindowSize: 10
-      permittedNumberOfCallsInHalfOpenState: 2
-      failureRateThreshold: 50
-      waitDurationInOpenState: 10000
-      registerHealthIndicator: true
-  instances:
-    # Feign 客户端的熔断器实例名就是 @FeignClient 的 name
-    user-service:
-      baseConfig: default
-    job-service:
-      baseConfig: default
-    ai-service:
-      baseConfig: default
-      # AI 服务更容易慢/超时，把熔断阈值放宽一点，避免频繁误熔断
-      failureRateThreshold: 70
-      waitDurationInOpenState: 30000
-
-resilience4j.retry:
-  configs:
-    default:
-      maxAttempts: 3
-      waitDuration: 500
-      enableExponentialBackoff: true
-      exponentialBackoffMultiplier: 2
-      retryExceptions:
-        - java.util.concurrent.TimeoutException
-        - java.io.IOException
-      ignoreExceptions:
-        # 业务异常不该重试 —— 简历没解析完，重试 3 次它也不会突然解析完
-        - com.jobsearch.matchingservice.exception.ResumeNotReadyException
-  instances:
-    computeMatches:
-      baseConfig: default
-      maxAttempts: 2

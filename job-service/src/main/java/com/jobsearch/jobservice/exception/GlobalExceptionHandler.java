@@ -18,22 +18,13 @@ import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- * 全局异常出口 —— 所有异常在这里收敛成统一的 {@link ErrorResponseDto}。
- *
- * <p>直接从 banking 项目搬过来，只改了两处：
- * <ol>
- *   <li>{@code @ControllerAdvice} → {@code @RestControllerAdvice}（省掉每个方法的 {@code @ResponseBody}）</li>
- *   <li>兜底的 {@code Exception} 处理器加了 {@code log.error} —— banking 那版把异常
- *       堆栈直接吞了只返回 message，生产上排障会很痛苦</li>
- * </ol>
- */
+
 @RestControllerAdvice
 public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
-    /** 参数校验失败 → 400 + 字段级错误明细，前端可以直接把错误标到对应输入框上 */
+    
     @Override
     protected ResponseEntity<Object> handleMethodArgumentNotValid(
             MethodArgumentNotValidException ex, HttpHeaders headers,
@@ -59,10 +50,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return build(request, HttpStatus.BAD_REQUEST, ex.getMessage());
     }
 
-    /**
-     * 兜底。注意这里 {@code log.error} 带上了异常对象 —— 堆栈必须进日志，
-     * 但<b>不能</b>返回给客户端（会泄漏内部结构）。所以响应里给的是一句通用提示。
-     */
+    
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponseDto> handleGlobal(Exception ex, WebRequest request) {
         log.error("unhandled exception on {}", request.getDescription(false), ex);

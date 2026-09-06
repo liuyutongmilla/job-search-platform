@@ -30,13 +30,7 @@ public class MatchingController {
         this.matchingService = matchingService;
     }
 
-    /**
-     * 触发一次匹配计算。
-     *
-     * <p>用 POST 而不是 GET：这个操作有副作用（花钱调 AI、写数据库、发消息），
-     * 不满足 GET 的幂等和安全语义。写成 GET 的后果是浏览器、代理、
-     * 以及网关上配的 GET 重试策略会重复触发它 —— 那可是真金白银。
-     */
+    
     @Operation(summary = "触发匹配计算（有副作用，会调用 AI）")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "计算完成（注意检查 degraded 字段）"),

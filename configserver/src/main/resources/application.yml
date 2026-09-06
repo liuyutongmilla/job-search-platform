@@ -11,46 +11,9 @@ spring:
       server:
         native:
           search-locations: "classpath:/config"
-        # 生产环境改用 git backend：
         # git:
         #   uri: "https://github.com/<you>/jobsearch-config.git"
         #   default-label: main
         #   clone-on-start: true
         #   force-pull: true
 
-eureka:
-  instance:
-    prefer-ip-address: true
-  client:
-    fetch-registry: true
-    register-with-eureka: true
-    service-url:
-      defaultZone: "http://localhost:8761/eureka/"
-
-# ⚠️ 这个 key 用来解密配置里的 {cipher}xxx 密文。
-# banking 项目把它明文提交进了代码库 —— 那是一级安全事故。
-# 这里从环境变量读，不设默认值：没配就启动失败，比悄悄用弱密钥安全。
-encrypt:
-  key: ${CONFIG_ENCRYPT_KEY:}
-
-management:
-  endpoints:
-    web:
-      exposure:
-        include: "*"
-  health:
-    readiness-state:
-      enabled: true
-    liveness-state:
-      enabled: true
-  endpoint:
-    health:
-      probes:
-        enabled: true
-  metrics:
-    tags:
-      application: ${spring.application.name}
-
-logging:
-  pattern:
-    level: "%5p [${spring.application.name},%X{trace_id},%X{span_id}]"

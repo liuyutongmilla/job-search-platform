@@ -7,8 +7,6 @@ spring:
   profiles:
     active: ${SPRING_PROFILES_ACTIVE:default}
 
-  # 配置中心。optional: 前缀的意思是"config server 连不上也允许启动"。
-  # 这是有意的：配置中心不该成为整个平台的单点故障。
   config:
     import: "optional:configserver:http://${CONFIG_HOST:localhost}:8071/"
 
@@ -24,8 +22,6 @@ spring:
   jpa:
     database-platform: org.hibernate.dialect.PostgreSQLDialect
     hibernate:
-      # validate：只校验实体和表结构是否一致，不自动改表。
-      # 表结构变更一律走 Flyway —— 这是能不能上生产的分水岭。
       ddl-auto: validate
     show-sql: false
     open-in-view: false
@@ -57,8 +53,6 @@ spring:
           brokers:
             - ${KAFKA_BROKERS:localhost:9092}
 
-# config server 连不上时的兜底默认值（config server 里的同名配置会覆盖它）。
-# 有了这一层，配置中心宕机时服务仍能正常启动和工作。
 job:
   search:
     maxResults: 50
@@ -67,73 +61,3 @@ job:
     name: "Job Service Team (local fallback)"
     email: "job-team@jobsearch.example.com"
 
-eureka:
-  instance:
-    prefer-ip-address: true
-  client:
-    fetch-registry: true
-    register-with-eureka: true
-    service-url:
-      defaultZone: "http://${EUREKA_HOST:localhost}:8761/eureka/"
-
-management:
-  endpoints:
-    web:
-      exposure:
-        include: "health,info,metrics,prometheus,refresh"
-  health:
-    readiness-state:
-      enabled: true
-    liveness-state:
-      enabled: true
-  endpoint:
-    health:
-      probes:
-        enabled: true
-      # 生产环境别暴露 shutdown 端点（banking 项目那里配了 unrestricted，是个隐患）
-    shutdown:
-      access: none
-  info:
-    env:
-      enabled: true
-  metrics:
-    tags:
-      application: ${spring.application.name}
-
-info:
-  app:
-    name: "job-service"
-    description: "Job posting and search service"
-    version: "1.0.0"
-
-logging:
-  level:
-    com.jobsearch.jobservice: DEBUG
-  pattern:
-    level: "%5p [${spring.application.name},%X{trace_id},%X{span_id}]"
-
-resilience4j.ratelimiter:
-  configs:
-    default:
-      timeoutDuration: 1000
-      limitRefreshPeriod: 1000
-      limitForPeriod: 50
-  instances:
-    searchJobs:
-      baseConfig: default
-
-resilience4j.circuitbreaker:
-  configs:
-    default:
-      slidingWindowSize: 10
-      permittedNumberOfCallsInHalfOpenState: 2
-      failureRateThreshold: 50
-      waitDurationInOpenState: 10000
-
-resilience4j.retry:
-  configs:
-    default:
-      maxAttempts: 3
-      waitDuration: 500
-      enableExponentialBackoff: true
-      exponentialBackoffMultiplier: 2

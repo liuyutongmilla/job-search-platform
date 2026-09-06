@@ -10,10 +10,7 @@ public record NotificationProperties(
     public record Channels(Boolean email, Boolean sms) {
     }
 
-    /**
-     * 限流参数。批量重算时如果不限流，一个用户会在几分钟内收到几十封邮件 ——
-     * 这是"技术上正确、体验上灾难"的典型。
-     */
+    
     public record Throttle(Integer windowMinutes, Integer maxPerWindow) {
     }
 

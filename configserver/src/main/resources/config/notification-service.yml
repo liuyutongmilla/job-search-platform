@@ -2,7 +2,6 @@ notification:
   channels:
     email: true
     sms: false
-  # 同一个用户在这个时间窗内最多收几条推送，防止批量重算时把用户轰炸一遍
   throttle:
     windowMinutes: 60
     maxPerWindow: 3

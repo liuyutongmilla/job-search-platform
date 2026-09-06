@@ -1,0 +1,55 @@
+# Public API gateway deployment.
+# Upstream: external clients. Downstream: application services.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gatewayserver
+  namespace: jobsearch
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gatewayserver
+  template:
+    metadata:
+      labels:
+        app: gatewayserver
+    spec:
+      containers:
+        - name: gatewayserver
+          image: jobsearch/gatewayserver:v1
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8072
+          env:
+            - name: DISCOVERY_SERVER_URL
+              value: "http://spring-cloud-kubernetes-discoveryserver"
+            - name: CONFIG_HOST
+              value: "configserver"
+            - name: REDIS_HOST
+              value: "redis"
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8072
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8072
+            initialDelaySeconds: 30
+            periodSeconds: 20
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gatewayserver
+  namespace: jobsearch
+spec:
+  selector:
+    app: gatewayserver
+  ports:
+    - port: 8072
+      targetPort: 8072
+  type: ClusterIP
