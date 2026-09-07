@@ -1,19 +1,14 @@
-# DiscoveryServer exposes Kubernetes service metadata to Spring Cloud DiscoveryClient consumers.
-# Upstream: gatewayserver and matching-service. Downstream: Kubernetes API (Services, Endpoints, Pods).
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: spring-cloud-kubernetes-discoveryserver
-  namespace: jobsearch
   labels:
-    app: spring-cloud-kubernetes-discoveryserver
+    {{- include "job-search-platform.labels" . | nindent 4 }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: namespace-reader
-  namespace: jobsearch
-# Grants namespace-scoped read access required for service discovery.
 rules:
   - apiGroups: [""]
     resources: ["pods", "services", "endpoints"]
@@ -23,7 +18,6 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   name: spring-cloud-kubernetes-discoveryserver-view
-  namespace: jobsearch
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
@@ -31,61 +25,47 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: spring-cloud-kubernetes-discoveryserver
-    namespace: jobsearch
+    namespace: {{ .Release.Namespace }}
 ---
 apiVersion: apps/v1
 kind: Deployment
-# Runs the HTTP DiscoveryServer used by Spring Cloud Kubernetes clients.
 metadata:
   name: spring-cloud-kubernetes-discoveryserver
-  namespace: jobsearch
 spec:
-  replicas: 1
+  replicas: {{ .Values.discoveryServer.replicas }}
   selector:
-    matchLabels:
-      app: spring-cloud-kubernetes-discoveryserver
+    matchLabels: { app: spring-cloud-kubernetes-discoveryserver }
   template:
     metadata:
-      labels:
-        app: spring-cloud-kubernetes-discoveryserver
+      labels: { app: spring-cloud-kubernetes-discoveryserver }
     spec:
       serviceAccountName: spring-cloud-kubernetes-discoveryserver
       containers:
         - name: spring-cloud-kubernetes-discoveryserver
-          # Keep the HTTP discovery client/server on the same stable 5.0.x line.
-          image: springcloud/spring-cloud-kubernetes-discoveryserver:5.0.3
+          image: {{ .Values.discoveryServer.image | quote }}
           imagePullPolicy: IfNotPresent
           env:
             - name: SPRING_CLOUD_KUBERNETES_DISCOVERY_NAMESPACES_0
-              value: jobsearch
+              value: {{ .Release.Namespace | quote }}
           ports:
-            - containerPort: 8761
+            - containerPort: {{ .Values.discoveryServer.port }}
           readinessProbe:
-            httpGet:
-              port: 8761
-              path: /actuator/health/readiness
+            httpGet: { path: /actuator/health/readiness, port: {{ .Values.discoveryServer.port }} }
             initialDelaySeconds: 20
             periodSeconds: 10
           livenessProbe:
-            httpGet:
-              port: 8761
-              path: /actuator/health/liveness
+            httpGet: { path: /actuator/health/liveness, port: {{ .Values.discoveryServer.port }} }
             initialDelaySeconds: 30
             periodSeconds: 20
 ---
 apiVersion: v1
 kind: Service
-# Provides a stable in-cluster endpoint for DiscoveryClient requests.
 metadata:
   name: spring-cloud-kubernetes-discoveryserver
-  namespace: jobsearch
-  labels:
-    app: spring-cloud-kubernetes-discoveryserver
 spec:
-  selector:
-    app: spring-cloud-kubernetes-discoveryserver
+  selector: { app: spring-cloud-kubernetes-discoveryserver }
   ports:
     - name: http
       port: 80
-      targetPort: 8761
+      targetPort: {{ .Values.discoveryServer.port }}
   type: ClusterIP

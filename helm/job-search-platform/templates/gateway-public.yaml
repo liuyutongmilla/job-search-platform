@@ -1,0 +1,15 @@
+{{- if .Values.services.gatewayserver.publicService.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: gateway-public
+spec:
+  selector: { app: gatewayserver }
+  ports:
+    - port: {{ .Values.services.gatewayserver.port }}
+      targetPort: {{ .Values.services.gatewayserver.port }}
+      {{- if eq .Values.services.gatewayserver.publicService.type "NodePort" }}
+      nodePort: {{ .Values.services.gatewayserver.publicService.nodePort }}
+      {{- end }}
+  type: {{ .Values.services.gatewayserver.publicService.type }}
+{{- end }}
