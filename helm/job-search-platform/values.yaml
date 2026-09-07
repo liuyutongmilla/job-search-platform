@@ -1,0 +1,62 @@
+# Default values for local/demo Kubernetes deployments.
+# Override these values with -f values-dev.yaml / values-prod.yaml or --set.
+
+secrets:
+  existingSecret: jobsearch-secrets
+
+discoveryServer:
+  replicas: 1
+  image: springcloud/spring-cloud-kubernetes-discoveryserver:5.0.3
+  port: 8761
+
+postgres:
+  replicas: 1
+  image: postgres:17-alpine
+  port: 5432
+
+redis:
+  replicas: 1
+  image: redis:7-alpine
+  port: 6379
+
+kafka:
+  replicas: 1
+  image: apache/kafka:3.9.0
+  brokerPort: 9092
+  controllerPort: 9093
+
+services:
+  configserver:
+    name: configserver
+    replicas: 1
+    image: jobsearch/configserver:v1
+    port: 8071
+  userService:
+    name: user-service
+    replicas: 1
+    image: jobsearch/user-service:v1
+    port: 8080
+  jobService:
+    name: job-service
+    replicas: 1
+    image: jobsearch/job-service:v1
+    port: 8090
+  matchingService:
+    name: matching-service
+    replicas: 1
+    image: jobsearch/matching-service:v1
+    port: 9000
+  notificationService:
+    name: notification-service
+    replicas: 1
+    image: jobsearch/notification-service:v1
+    port: 9010
+  gatewayserver:
+    name: gatewayserver
+    replicas: 1
+    image: jobsearch/gatewayserver:v1
+    port: 8072
+    publicService:
+      enabled: true
+      type: NodePort
+      nodePort: 30072

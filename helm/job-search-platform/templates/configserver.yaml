@@ -1,12 +1,12 @@
-# Centralized configuration service.
-# Upstream: application services at startup. Downstream: service configuration.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: configserver
-  namespace: jobsearch
+  labels:
+    app: configserver
+    {{- include "job-search-platform.labels" . | nindent 4 }}
 spec:
-  replicas: 1
+  replicas: {{ .Values.services.configserver.replicas }}
   selector:
     matchLabels:
       app: configserver
@@ -17,26 +17,26 @@ spec:
     spec:
       containers:
         - name: configserver
-          image: jobsearch/configserver:v1
+          image: {{ .Values.services.configserver.image | quote }}
           imagePullPolicy: IfNotPresent
           ports:
-            - containerPort: 8071
+            - containerPort: {{ .Values.services.configserver.port }}
           env:
             - name: CONFIG_ENCRYPT_KEY
               valueFrom:
                 secretKeyRef:
-                  name: jobsearch-secrets
+                  name: {{ .Values.secrets.existingSecret }}
                   key: CONFIG_ENCRYPT_KEY
           readinessProbe:
             httpGet:
               path: /actuator/health/readiness
-              port: 8071
+              port: {{ .Values.services.configserver.port }}
             initialDelaySeconds: 15
             periodSeconds: 10
           livenessProbe:
             httpGet:
               path: /actuator/health/liveness
-              port: 8071
+              port: {{ .Values.services.configserver.port }}
             initialDelaySeconds: 30
             periodSeconds: 20
 ---
@@ -44,11 +44,11 @@ apiVersion: v1
 kind: Service
 metadata:
   name: configserver
-  namespace: jobsearch
 spec:
   selector:
     app: configserver
   ports:
-    - port: 8071
-      targetPort: 8071
+    - name: http
+      port: {{ .Values.services.configserver.port }}
+      targetPort: {{ .Values.services.configserver.port }}
   type: ClusterIP

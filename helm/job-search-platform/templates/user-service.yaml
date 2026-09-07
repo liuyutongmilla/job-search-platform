@@ -1,55 +1,55 @@
-# User and resume service.
-# Upstream: gatewayserver and matching-service. Downstream: PostgreSQL and Kafka.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: user-service
-  namespace: jobsearch
+  name: {{ .Values.services.userService.name }}
+  labels:
+    app: {{ .Values.services.userService.name }}
+    {{- include "job-search-platform.labels" . | nindent 4 }}
 spec:
-  replicas: 1
+  replicas: {{ .Values.services.userService.replicas }}
   selector:
     matchLabels:
-      app: user-service
+      app: {{ .Values.services.userService.name }}
   template:
     metadata:
       labels:
-        app: user-service
+        app: {{ .Values.services.userService.name }}
     spec:
       containers:
-        - name: user-service
-          image: jobsearch/user-service:v1
+        - name: {{ .Values.services.userService.name }}
+          image: {{ .Values.services.userService.image | quote }}
           imagePullPolicy: IfNotPresent
           ports:
-            - containerPort: 8080
+            - containerPort: {{ .Values.services.userService.port }}
           env:
             - name: DB_USER
               valueFrom:
                 secretKeyRef:
-                  name: jobsearch-secrets
+                  name: {{ .Values.secrets.existingSecret }}
                   key: DB_USER
             - name: DB_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: jobsearch-secrets
+                  name: {{ .Values.secrets.existingSecret }}
                   key: DB_PASSWORD
             - name: CONFIG_HOST
-              value: "configserver"
+              value: configserver
             - name: DB_HOST
-              value: "postgres"
+              value: postgres
             - name: KAFKA_BROKERS
-              value: "kafka:9092"
+              value: kafka:9092
             - name: RESUME_STORAGE_DIR
-              value: "/data/resumes"
+              value: /data/resumes
           readinessProbe:
             httpGet:
               path: /actuator/health/readiness
-              port: 8080
+              port: {{ .Values.services.userService.port }}
             initialDelaySeconds: 15
             periodSeconds: 10
           livenessProbe:
             httpGet:
               path: /actuator/health/liveness
-              port: 8080
+              port: {{ .Values.services.userService.port }}
             initialDelaySeconds: 30
             periodSeconds: 20
           volumeMounts:
@@ -62,12 +62,12 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: user-service
-  namespace: jobsearch
+  name: {{ .Values.services.userService.name }}
 spec:
   selector:
-    app: user-service
+    app: {{ .Values.services.userService.name }}
   ports:
-    - port: 8080
-      targetPort: 8080
+    - name: http
+      port: {{ .Values.services.userService.port }}
+      targetPort: {{ .Values.services.userService.port }}
   type: ClusterIP

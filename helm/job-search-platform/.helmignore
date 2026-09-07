@@ -1,0 +1,8 @@
+# Helm package ignore rules
+.DS_Store
+.git/
+.gitignore
+.idea/
+*.swp
+*.tmp
+*.bak

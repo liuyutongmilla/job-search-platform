@@ -1,0 +1,30 @@
+# Production-oriented example overrides.
+# Replace demo image tags and externalize stateful infrastructure/secrets before real production use.
+
+services:
+  configserver:
+    replicas: 2
+  userService:
+    replicas: 2
+  jobService:
+    replicas: 3
+  matchingService:
+    replicas: 2
+  notificationService:
+    replicas: 2
+  gatewayserver:
+    replicas: 2
+    publicService:
+      enabled: true
+      type: LoadBalancer
+
+# The bundled Postgres/Redis/Kafka resources are suitable for local/demo use.
+# A real production environment would normally use persistent volumes or managed services.
+postgres:
+  replicas: 1
+
+redis:
+  replicas: 1
+
+kafka:
+  replicas: 1
